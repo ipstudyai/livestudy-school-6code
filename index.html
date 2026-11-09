@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>學校代碼查詢</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --ink: #151a22;
+    --muted: #667085;
+    --line: #e3e6ec;
+    --accent: #2150c8;
+    --accent-soft: #e9effd;
+    --hl: #ffe9a0;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1217;
+      --card: #181d25;
+      --ink: #eef1f6;
+      --muted: #9aa4b2;
+      --line: #272d38;
+      --accent: #86a9ff;
+      --accent-soft: #1d2842;
+      --hl: #6b5a12;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC",
+                 "Microsoft JhengHei", "Heiti TC", sans-serif;
+    line-height: 1.45;
+    min-height: 100vh;
+  }
+
+  /* 頂部固定區：標題 + 搜尋 + 縣市 */
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--bg);
+    padding: calc(12px + env(safe-area-inset-top)) 16px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  h1 { margin: 0 0 10px; font-size: 19px; font-weight: 700; letter-spacing: .02em; }
+
+  .search { position: relative; }
+  .search svg.ico {
+    position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    width: 20px; height: 20px; color: var(--muted); pointer-events: none;
+  }
+  #q {
+    width: 100%; height: 52px;
+    padding: 0 48px 0 44px;
+    font: inherit; font-size: 17px; /* 16px 以上，iPhone 才不會自動放大畫面 */
+    color: var(--ink);
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: 14px;
+    outline: none;
+    box-shadow: var(--shadow);
+    -webkit-appearance: none; appearance: none;
+  }
+  #q::-webkit-search-cancel-button,
+  #q::-webkit-search-decoration { -webkit-appearance: none; display: none; }
+  #q:focus { border-color: var(--accent); }
+  #q::placeholder { color: var(--muted); }
+  #clear {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    width: 44px; height: 44px; border: 0; background: transparent; color: var(--muted);
+    display: none; align-items: center; justify-content: center; cursor: pointer;
+  }
+  #clear.on { display: flex; }
+  #clear svg { width: 20px; height: 20px; }
+
+  .select-wrap { position: relative; margin-top: 8px; }
+  #county {
+    width: 100%; height: 48px; padding: 0 40px 0 14px;
+    font: inherit; font-size: 16px; color: var(--ink);
+    background: var(--card);
+    border: 1.5px solid var(--line); border-radius: 14px;
+    -webkit-appearance: none; appearance: none; outline: none;
+  }
+  #county:focus { border-color: var(--accent); }
+  .select-wrap::after {
+    content: ""; position: absolute; right: 16px; top: 50%;
+    width: 8px; height: 8px; margin-top: -6px;
+    border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+    transform: rotate(45deg); pointer-events: none;
+  }
+
+  main { padding: 12px 16px calc(40px + env(safe-area-inset-bottom)); }
+  #count { margin: 2px 2px 10px; font-size: 13px; color: var(--muted); min-height: 19px; }
+
+  /* 結果卡片：整張可點，點了複製代碼 */
+  #list { display: grid; gap: 10px; }
+  .card {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    width: 100%; min-height: 72px; padding: 12px 14px;
+    text-align: left; font: inherit; color: inherit;
+    background: var(--card);
+    border: 1.5px solid var(--line); border-radius: 14px;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: transform .08s ease, border-color .15s ease, background-color .15s ease;
+  }
+  .card:active { transform: scale(.985); background: var(--accent-soft); }
+  .card.done { border-color: var(--accent); background: var(--accent-soft); }
+  .info { min-width: 0; }
+  .name { display: block; font-size: 17px; font-weight: 650; word-break: break-all; }
+  .meta { display: block; margin-top: 3px; font-size: 13px; color: var(--muted); }
+  .tag {
+    display: inline-block; margin-left: 6px; padding: 0 7px;
+    font-size: 12px; line-height: 18px; border-radius: 9px;
+    color: var(--accent); background: var(--accent-soft);
+  }
+  .codebox { flex: none; text-align: right; }
+  .code {
+    display: block; font-size: 24px; font-weight: 750; letter-spacing: .06em;
+    color: var(--accent);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    user-select: all; -webkit-user-select: all;
+  }
+  .hint-copy { display: block; margin-top: 1px; font-size: 12px; color: var(--muted); }
+  mark { background: var(--hl); color: inherit; border-radius: 3px; padding: 0 1px; }
+
+  /* 空白 / 載入 / 錯誤狀態 */
+  .state { padding: 36px 8px; text-align: center; color: var(--muted); font-size: 15px; }
+  .state b { display: block; margin-bottom: 6px; font-size: 17px; color: var(--ink); font-weight: 650; }
+  .state .eg { margin-top: 10px; font-size: 14px; }
+  .spinner {
+    width: 28px; height: 28px; margin: 0 auto 14px;
+    border: 3px solid var(--line); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  button.btn {
+    margin-top: 14px; height: 44px; padding: 0 22px;
+    font: inherit; font-size: 15px; font-weight: 600; color: #fff;
+    background: var(--accent); border: 0; border-radius: 12px; cursor: pointer;
+  }
+  @media (prefers-color-scheme: dark) { button.btn { color: #0f1217; } }
+  #more { display: block; width: 100%; margin-top: 12px; height: 48px; font: inherit; font-size: 15px;
+    color: var(--accent); background: var(--card); border: 1.5px solid var(--line); border-radius: 14px; cursor: pointer; }
+
+  #more[hidden] { display: none; }
+
+  footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--muted); line-height: 1.7; }
+  footer p { margin: 0 0 6px; }
+  footer .note { margin-bottom: 10px; }
+  /* 聯絡窗口：兩張卡片同一列；閩客語淡綠、族語淡藍 */
+  .contact {
+    --g-bg: #eef7f1; --g-line: #cfe5d7; --g-ink: #2c7048; --g-tag: #d9eee1;
+    --b-bg: #edf3fc; --b-line: #cfdcf1; --b-ink: #2a5aa8; --b-tag: #dae6f8;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    .contact {
+      --g-bg: #16261d; --g-line: #27432f; --g-ink: #86d3a5; --g-tag: #21392a;
+      --b-bg: #17233a; --b-line: #2a3d5f; --b-ink: #93b5ff; --b-tag: #223452;
+    }
+  }
+  .c { display: flex; flex-direction: column; min-width: 0; padding: 12px 12px 10px;
+       border-radius: 14px; border: 1px solid; }
+  .c .prog { font-size: 14px; font-weight: 700; line-height: 1.35; letter-spacing: .01em; color: var(--ink); }
+  .c .tag2 { align-self: flex-start; margin: 7px 0 8px; padding: 1px 9px; font-size: 12px;
+             line-height: 19px; border-radius: 10px; font-weight: 600; }
+  .c .id { margin-top: auto; font-size: 12px; color: var(--muted); }
+  .c a { display: block; margin-top: 1px; padding: 3px 0; font-size: 14.5px; font-weight: 700;
+         text-decoration: none; word-break: break-all; }
+  .c.g { background: var(--g-bg); border-color: var(--g-line); }
+  .c.g .tag2 { background: var(--g-tag); color: var(--g-ink); }
+  .c.g a { color: var(--g-ink); }
+  .c.b { background: var(--b-bg); border-color: var(--b-line); }
+  .c.b .tag2 { background: var(--b-tag); color: var(--b-ink); }
+  .c.b a { color: var(--b-ink); }
+
+  #toast {
+    position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+    padding: 12px 20px; border-radius: 24px; font-size: 15px; font-weight: 600;
+    color: #fff; background: rgba(21, 26, 34, .94);
+    transition: opacity .18s ease, transform .18s ease; z-index: 30; white-space: nowrap;
+  }
+  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-color-scheme: dark) { #toast { background: rgba(238, 241, 246, .96); color: #0f1217; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation-duration: 2s !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>學校代碼查詢</h1>
+    <div class="search">
+      <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="q" type="search" inputmode="search" enterkeyhint="search"
+             placeholder="請輸入學校名稱或代碼關鍵字" autocomplete="off" autocorrect="off"
+             autocapitalize="off" spellcheck="false" aria-label="搜尋學校名稱或代碼" autofocus>
+      <button id="clear" type="button" aria-label="清除輸入">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+      </button>
+    </div>
+    <div class="select-wrap">
+      <select id="county" aria-label="選擇縣市" disabled>
+        <option value="">全部縣市</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div id="count" aria-live="polite"></div>
+    <div id="list"></div>
+    <button id="more" type="button" hidden>顯示更多</button>
+    <footer>
+      <p id="foot-src">資料來源：教育部統計處學校名錄</p>
+      <p class="note">本查詢結果僅供參考。如發現資料有誤或有任何問題，請洽下列聯絡窗口：</p>
+      <div class="contact">
+        <div class="c g"><span class="prog">本土語文直播共學</span><span class="tag2">閩客語</span>
+          <span class="id">LINE ID</span>
+          <a href="https://lin.ee/acvsjDu" target="_blank" rel="noopener">@289drhwr</a></div>
+        <div class="c b"><span class="prog">原住民族語文直播共學</span><span class="tag2">族語</span>
+          <span class="id">LINE ID</span>
+          <a href="https://lin.ee/NJsBkqnS" target="_blank" rel="noopener">@397zoeew</a></div>
+      </div>
+    </footer>
+  </div>
+</main>
+
+<div id="toast" role="status"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // 請把 Apps Script「網頁應用程式」部署後取得的網址貼在下面引號內
+  var API_URL = 'https://script.google.com/macros/s/AKfycbxxcgL3Gqa32AKZl9klym_7X84W_L4-dez1-H3NvSVvtnaQztrXI7KJxljxfFnwFluJ/exec';
+  var LS_KEY = 'school_code_lookup_v1';
+  var PAGE = 50;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var elQ = $('q'), elClear = $('clear'), elCounty = $('county'),
+      elCount = $('count'), elList = $('list'), elMore = $('more'),
+      elFoot = $('foot-src'), elToast = $('toast');
+
+  var DB = null;          // { src, counties, levels, items[] }
+  var shown = PAGE;
+  var countyKey = '';     // 縣市選單目前的內容指紋，沒變就不重建
+
+  // ---------- 文字正規化：臺=台、全形數字=半形、不分大小寫 ----------
+  function norm(s) {
+    return String(s == null ? '' : s)
+      .replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+      .replace(/臺/g, '台')
+      .toLowerCase();
+  }
+  function esc(s) {
+    return s.replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function isCodeTok(t) { return /^(?=.*\d)[0-9a-z]+$/.test(t); }
+
+  // ---------- 資料整理 ----------
+  function setData(p) {
+    var items = new Array(p.rows.length);
+    for (var i = 0; i < p.rows.length; i++) {
+      var r = p.rows[i];
+      var county = r[2] >= 0 ? p.counties[r[2]] : '';
+      var nameN = norm(r[1]);
+      items[i] = {
+        code: r[0], name: r[1], ci: r[2], county: county, district: r[3],
+        level: p.levels[r[4]] || '',
+        codeN: norm(r[0]),
+        nameN: nameN,
+        stripN: nameN.replace(/^(市立|縣立|國立|私立|公立|財團法人)/, ''),
+        hay: [county, r[3], r[1], r[0]].map(norm).join(' ')
+      };
+    }
+    DB = { v: p.v, src: p.src, counties: p.counties, levels: p.levels, items: items };
+
+    countyKey = '';
+    render();
+    renderFoot();
+  }
+
+  // ---------- 搜尋 ----------
+  function scoreToken(it, t) {
+    if (isCodeTok(t)) {
+      if (it.codeN === t) return 0;
+      if (it.codeN.indexOf(t) === 0) return 1;
+      if (it.codeN.indexOf(t) > 0) return 5;
+      return it.hay.indexOf(t) >= 0 ? 7 : -1;
+    }
+    if (it.stripN.indexOf(t) === 0) return 2;
+    if (it.nameN.indexOf(t) >= 0) return 3;
+    if (it.hay.indexOf(t) >= 0) return 6;   // 比對到縣市 / 行政區
+    return -1;
+  }
+
+  function hl(text, tokens) {
+    var n = norm(text);
+    if (!tokens.length || n.length !== text.length) return esc(text);
+    var mark = [], i, k;
+    for (i = 0; i < text.length; i++) mark.push(false);
+    tokens.forEach(function (t) {
+      var at = n.indexOf(t);
+      while (at >= 0) {
+        for (k = at; k < at + t.length; k++) mark[k] = true;
+        at = n.indexOf(t, at + t.length);
+      }
+    });
+    var out = '', open = false;
+    for (i = 0; i < text.length; i++) {
+      if (mark[i] && !open) { out += '<mark>'; open = true; }
+      if (!mark[i] && open) { out += '</mark>'; open = false; }
+      out += esc(text.charAt(i));
+    }
+    return open ? out + '</mark>' : out;
+  }
+
+  // 縣市選單只列出「符合目前關鍵字」的縣市（並標示校數）
+  function updateCountyOptions(counts, hasTokens) {
+    var cur = elCounty.value;
+    var html = '<option value="">全部縣市</option>', key = '';
+    DB.counties.forEach(function (c, i) {
+      if (!counts[i]) return;
+      html += '<option value="' + i + '">' + esc(c) + (hasTokens ? '（' + counts[i] + '）' : '') + '</option>';
+      key += i + ':' + counts[i] + ',';
+    });
+    if (key !== countyKey) { elCounty.innerHTML = html; countyKey = key; }
+    // 原先選的縣市若已不在結果內，退回「全部縣市」
+    elCounty.value = (cur !== '' && counts[+cur]) ? cur : '';
+    elCounty.disabled = false;
+  }
+
+  function render() {
+    elClear.classList.toggle('on', elQ.value.length > 0);
+    elMore.hidden = true;
+    if (!DB) return;
+
+    var tokens = norm(elQ.value).trim().split(/\s+/).filter(Boolean);
+
+    // 1) 不分縣市，找出所有符合者並統計各縣市校數
+    var all = [], counts = {}, i, j;
+    for (i = 0; i < DB.items.length; i++) {
+      var it = DB.items[i], score = 0, ok = true;
+      for (j = 0; j < tokens.length; j++) {
+        var s = scoreToken(it, tokens[j]);
+        if (s < 0) { ok = false; break; }
+        score += s;
+      }
+      if (!ok) continue;
+      all.push([score, it]);
+      if (it.ci >= 0) counts[it.ci] = (counts[it.ci] || 0) + 1;
+    }
+
+    // 2) 更新縣市選單，再套用使用者選的縣市
+    updateCountyOptions(counts, tokens.length > 0);
+    var ci = elCounty.value === '' ? -1 : +elCounty.value;
+
+    if (!tokens.length && ci < 0) {
+      elCount.textContent = '';
+      elList.innerHTML =
+        '<div class="state"><b>查詢學校 6 碼代碼</b>' +
+        '請輸入學校名稱或代碼之部分關鍵字，系統將列出符合之學校；' +
+        '縣市選項會依查詢結果自動篩選。' +
+        '<div class="eg">查詢範例：「板橋 國光」、「0146」、「宜蘭高中」</div></div>';
+      return;
+    }
+
+    var res = ci >= 0 ? all.filter(function (x) { return x[1].ci === ci; }) : all;
+    res.sort(function (a, b) { return a[0] - b[0] || (a[1].code < b[1].code ? -1 : 1); });
+
+    var where = ci >= 0 ? DB.counties[ci] + '　' : '';
+    if (!res.length) {
+      elCount.textContent = '';
+      elList.innerHTML = '<div class="state"><b>查無符合之學校</b>請減少關鍵字，或確認校名、代碼是否正確</div>';
+      return;
+    }
+    elCount.textContent = where + '共 ' + res.length + ' 所' +
+      (res.length > shown ? '，先顯示前 ' + shown + ' 所' : '');
+
+    var html = '';
+    var lim = Math.min(res.length, shown);
+    for (var k = 0; k < lim; k++) {
+      var x = res[k][1];
+      html +=
+        '<button class="card" type="button" data-code="' + esc(x.code) + '">' +
+          '<span class="info">' +
+            '<span class="name">' + hl(x.name, tokens) + '</span>' +
+            '<span class="meta">' + esc([x.county, x.district].filter(Boolean).join(' · ')) +
+              (x.level ? '<span class="tag">' + esc(x.level) + '</span>' : '') + '</span>' +
+          '</span>' +
+          '<span class="codebox"><span class="code">' + hl(x.code, tokens) + '</span>' +
+          '<span class="hint-copy">點選複製代碼</span></span>' +
+        '</button>';
+    }
+    elList.innerHTML = html;
+    if (res.length > shown) {
+      elMore.hidden = false;
+      elMore.textContent = '顯示更多（尚有 ' + (res.length - shown) + ' 所）';
+    }
+  }
+
+  function renderFoot() {
+    var yr = DB && DB.src ? (String(DB.src).match(/(\d{2,3})\s*學年度/) || [])[1] : '';
+    elFoot.textContent = '資料來源：教育部統計處學校名錄' + (yr ? '（' + yr + ' 學年度）' : '') +
+      (DB ? '，共 ' + DB.items.length.toLocaleString() + ' 所' : '');
+  }
+
+  // ---------- 複製 ----------
+  function copyText(text) {
+    return new Promise(function (resolve) {
+      function fallback() {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text; ta.setAttribute('readonly', '');
+          ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;font-size:16px';
+          document.body.appendChild(ta);
+          ta.select(); ta.setSelectionRange(0, text.length);
+          var ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+          resolve(!!ok);
+        } catch (e) { resolve(false); }
+      }
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text).then(function () { resolve(true); }, fallback);
+          return;
+        }
+      } catch (e) { /* 往下走備援 */ }
+      fallback();
+    });
+  }
+
+  var toastTimer;
+  function toast(msg) {
+    elToast.textContent = msg;
+    elToast.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { elToast.classList.remove('on'); }, 1600);
+  }
+
+  elList.addEventListener('click', function (e) {
+    var card = e.target.closest ? e.target.closest('.card') : null;
+    if (!card) return;
+    var code = card.getAttribute('data-code');
+    copyText(code).then(function (ok) {
+      if (ok) {
+        card.classList.add('done');
+        setTimeout(function () { card.classList.remove('done'); }, 900);
+        toast('已複製 ' + code);
+      } else {
+        toast('請長按代碼手動複製');
+      }
+    });
+  });
+
+  // ---------- 輸入事件 ----------
+  var BOPOMOFO = /[ㄅ-ㄯˇˉˊˋ˙]/;
+  var rafId;
+  function onChange() {
+    // 注音輸入中（還沒選字）先不搜尋，避免畫面閃成「找不到」
+    if (BOPOMOFO.test(elQ.value)) { elClear.classList.toggle('on', true); return; }
+    shown = PAGE;
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(render);
+  }
+  elQ.addEventListener('input', onChange);
+  elQ.addEventListener('compositionend', onChange);
+  elQ.addEventListener('keydown', function (e) { if (e.key === 'Enter') elQ.blur(); });
+  elCounty.addEventListener('change', function () { shown = PAGE; render(); });
+  elClear.addEventListener('click', function () { elQ.value = ''; shown = PAGE; render(); elQ.focus(); });
+  elMore.addEventListener('click', function () { shown += PAGE; render(); });
+
+  // ---------- 載入資料：先用手機暫存，同時向伺服器確認有無更新 ----------
+  function showLoading() {
+    elList.innerHTML = '<div class="state"><div class="spinner"></div>資料載入中，請稍候…</div>';
+  }
+  function showError(msg) {
+    elList.innerHTML = '<div class="state"><b>資料載入失敗</b>' + esc(msg || '請確認網路連線後重新載入') +
+      '<br><button class="btn" id="retry" type="button">重新載入</button></div>';
+    var b = $('retry'); if (b) b.addEventListener('click', start);
+  }
+
+  function readLocal() {
+    try { var raw = localStorage.getItem(LS_KEY); return raw ? JSON.parse(raw) : null; }
+    catch (e) { return null; }
+  }
+  function writeLocal(p) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(p)); } catch (e) { /* 無痕模式等情況，略過 */ }
+  }
+
+  function start() {
+    var cached = readLocal();
+    if (cached && cached.rows && cached.rows.length) {
+      setData(cached);
+    } else {
+      showLoading();
+    }
+
+    if (!API_URL || API_URL.indexOf('script.google.com') < 0) {
+      if (!DB) showError('尚未設定資料來源網址');
+      return;
+    }
+    var url = API_URL + (API_URL.indexOf('?') < 0 ? '?' : '&') +
+      'action=data&v=' + encodeURIComponent(cached && cached.v ? cached.v : '');
+    fetch(url)
+      .then(function (r) { if (!r.ok) throw new Error('伺服器回應異常（' + r.status + '）'); return r.json(); })
+      .then(function (res) {
+        if (res && res.error) throw new Error(res.error);
+        if (res && res.unchanged) return;
+        if (res && res.rows) { setData(res); writeLocal(res); }
+      })
+      .catch(function (err) {
+        if (!DB) showError(err && err.message);
+      });
+  }
+
+  start();
+})();
+</script>
+</body>
+</html>
